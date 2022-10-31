@@ -36,6 +36,7 @@ public final class NessieUtil {
 
   public static final String NESSIE_CONFIG_PREFIX = "nessie.";
   static final String APPLICATION_TYPE = "application-type";
+  static final String CREATE_IMPLIED_NAMESPACES = "create-implied-namespaces";
 
   private NessieUtil() {}
 
@@ -88,5 +89,16 @@ public final class NessieUtil {
   private static String commitAuthor(Map<String, String> catalogOptions) {
     return Optional.ofNullable(catalogOptions.get(CatalogProperties.USER))
         .orElseGet(() -> System.getProperty("user.name"));
+  }
+
+  /**
+   * Indicates whether the Nessie Catalog should automatically create namespaces implied by table
+   * identifiers.
+   *
+   * @param catalogOptions The options where to look for configuration settings.
+   */
+  static boolean shouldCreateImpliedNamespaces(Map<String, String> catalogOptions) {
+    String create = catalogOptions.get(CREATE_IMPLIED_NAMESPACES);
+    return create == null || Boolean.parseBoolean(create); // Note: `true` if not set
   }
 }

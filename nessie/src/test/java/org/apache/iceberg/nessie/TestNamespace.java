@@ -35,6 +35,7 @@ import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
 
@@ -71,6 +72,29 @@ public class TestNamespace extends BaseTestIceberg {
     Assertions.assertThat(namespaces).isNotNull().hasSize(2);
     namespaces = catalog.listNamespaces(Namespace.of("b"));
     Assertions.assertThat(namespaces).isNotNull().hasSize(2);
+  }
+
+  @Test
+  public void testAutoCreateNamespaceContent() throws NessieNotFoundException {
+    ContentKey nsKey1 = ContentKey.of("a", "b");
+    ContentKey nsKey2 = ContentKey.of("a", "b", "c");
+    ContentKey nsKey3 = ContentKey.of("a");
+    createTable(TableIdentifier.parse(nsKey1.toString() + ".t1"));
+    createTable(TableIdentifier.parse(nsKey2.toString() + ".t2"));
+    createTable(TableIdentifier.parse(nsKey3.toString() + ".t3"));
+
+    Map<ContentKey, Content> contentMap =
+        api.getContent().refName(BRANCH).key(nsKey1).key(nsKey2).key(nsKey3).get();
+
+    Assertions.assertThat(contentMap)
+        .extractingByKey(nsKey1)
+        .isInstanceOf(org.projectnessie.model.Namespace.class);
+    Assertions.assertThat(contentMap)
+        .extractingByKey(nsKey2)
+        .isInstanceOf(org.projectnessie.model.Namespace.class);
+    Assertions.assertThat(contentMap)
+        .extractingByKey(nsKey3)
+        .isInstanceOf(org.projectnessie.model.Namespace.class);
   }
 
   @Test

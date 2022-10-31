@@ -19,6 +19,8 @@
 package org.apache.iceberg.nessie;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,6 +36,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.CommitMultipleOperationsBuilder;
@@ -255,6 +258,42 @@ public class NessieIcebergClient implements AutoCloseable {
               namespace, getRef().getName()),
           e);
     }
+  }
+
+  public Collection<org.projectnessie.model.Namespace> findImpliedNamespaces(ContentKey key) {
+    if (!NessieUtil.shouldCreateImpliedNamespaces(catalogOptions)) {
+      return Collections.emptyList();
+    }
+
+    List<String> elements = key.getNamespace().getElements();
+    if (elements.isEmpty()) {
+      return Collections.emptyList();
+    }
+
+    List<ContentKey> nsKeys = Lists.newArrayListWithCapacity(elements.size());
+    for (int i = 1; i <= elements.size(); i++) {
+      nsKeys.add(ContentKey.of(elements.subList(0, i)));
+    }
+
+    List<org.projectnessie.model.Namespace> missingNamespaces = Lists.newArrayList();
+    for (ContentKey nsKey : nsKeys) {
+      org.projectnessie.model.Namespace namespace =
+          org.projectnessie.model.Namespace.of(nsKey.getElements());
+      try {
+        getApi().getNamespace().reference(getRef().getReference()).namespace(namespace).get();
+      } catch (NessieNamespaceNotFoundException e) {
+        LOG.debug("Missing namespace: {}", nsKey, e);
+        missingNamespaces.add(namespace);
+      } catch (NessieReferenceNotFoundException e) {
+        throw new RuntimeException(
+            String.format(
+                "Cannot load Namespaces for '%s': " + "ref '%s' is no longer valid.",
+                key, getRef().getName()),
+            e);
+      }
+    }
+
+    return missingNamespaces;
   }
 
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {

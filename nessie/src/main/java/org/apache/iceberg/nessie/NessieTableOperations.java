@@ -30,6 +30,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.projectnessie.client.api.CommitMultipleOperationsBuilder;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
@@ -195,14 +196,27 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       if (isSnapshotOperation(base, metadata)) {
         builder.putProperties("iceberg.operation", snapshot.operation());
       }
-      Branch branch =
+
+      CommitMultipleOperationsBuilder commit =
           client
               .getApi()
               .commitMultipleOperations()
               .operation(Operation.Put.of(key, newTable, table))
               .commitMeta(NessieUtil.catalogOptions(builder, catalogOptions).build())
-              .branch(expectedHead)
-              .commit();
+              .branch(expectedHead);
+
+      if (base == null) { // new table
+        client
+            .findImpliedNamespaces(key)
+            .forEach(
+                ns -> {
+                  LOG.info(
+                      "Adding implied Namespace '{}' in '{}'", ns, client.getRef().getReference());
+                  commit.operation(Operation.Put.of(ContentKey.of(ns.getElements()), ns));
+                });
+      }
+
+      Branch branch = commit.commit();
       LOG.info(
           "Committed '{}' against '{}', expected commit-id was '{}'",
           key,

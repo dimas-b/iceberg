@@ -54,6 +54,7 @@ import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
 import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
+import org.projectnessie.model.Namespace;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
 import org.projectnessie.server.store.TableCommitMetaStoreWorker;
@@ -178,6 +179,11 @@ public abstract class BaseTestIceberg {
   void createBranch(String name, String hash, String sourceRef)
       throws NessieNotFoundException, NessieConflictException {
     api.createReference().reference(Branch.of(name, hash)).sourceRefName(sourceRef).create();
+  }
+
+  void createNamespace(String refName, Namespace namespace)
+      throws NessieNotFoundException, NessieConflictException {
+    api.createNamespace().refName(refName).namespace(namespace).create();
   }
 
   @AfterEach
