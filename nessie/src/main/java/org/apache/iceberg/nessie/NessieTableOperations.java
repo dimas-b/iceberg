@@ -147,6 +147,28 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     refreshFromMetadataLocation(metadataLocation, null, 2, l -> loadTableMetadata(l, reference));
   }
 
+  private CommitMultipleOperationsBuilder makeNessieCommit(
+      IcebergTable newTable, boolean addNamespaces) {
+    CommitMultipleOperationsBuilder commit =
+        client
+            .getApi()
+            .commitMultipleOperations()
+            .operation(Operation.Put.of(key, newTable, table));
+
+    if (addNamespaces) {
+      client
+          .findImpliedNamespaces(key)
+          .forEach(
+              ns -> {
+                LOG.info(
+                    "Adding implied Namespace '{}' in '{}'", ns, client.getRef().getReference());
+                commit.operation(Operation.Put.of(ContentKey.of(ns.getElements()), ns));
+              });
+    }
+
+    return commit;
+  }
+
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     UpdateableReference updateableReference = client.getRef();
@@ -197,26 +219,13 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
         builder.putProperties("iceberg.operation", snapshot.operation());
       }
 
-      CommitMultipleOperationsBuilder commit =
-          client
-              .getApi()
-              .commitMultipleOperations()
-              .operation(Operation.Put.of(key, newTable, table))
+      // Commit to Nessie including implied namespaces for new tables
+      Branch branch =
+          makeNessieCommit(newTable, base == null)
               .commitMeta(NessieUtil.catalogOptions(builder, catalogOptions).build())
-              .branch(expectedHead);
+              .branch(expectedHead)
+              .commit();
 
-      if (base == null) { // new table
-        client
-            .findImpliedNamespaces(key)
-            .forEach(
-                ns -> {
-                  LOG.info(
-                      "Adding implied Namespace '{}' in '{}'", ns, client.getRef().getReference());
-                  commit.operation(Operation.Put.of(ContentKey.of(ns.getElements()), ns));
-                });
-      }
-
-      Branch branch = commit.commit();
       LOG.info(
           "Committed '{}' against '{}', expected commit-id was '{}'",
           key,
