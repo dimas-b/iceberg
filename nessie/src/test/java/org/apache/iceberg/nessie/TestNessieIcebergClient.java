@@ -151,7 +151,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     String branch = "testFindImpliedNamespacesDisabled";
     NessieIcebergClient client =
         new NessieIcebergClient(
-            api, branch, null, ImmutableMap.of(NessieUtil.CREATE_IMPLIED_NAMESPACES, "false"));
+            api, branch, null, ImmutableMap.of(NessieUtil.IGNORE_IMPLIED_NAMESPACES, "true"));
 
     Assertions.assertThat(client.findImpliedNamespaces(ContentKey.of("a", "b", "Table"))).isEmpty();
   }

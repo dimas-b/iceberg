@@ -36,7 +36,7 @@ public final class NessieUtil {
 
   public static final String NESSIE_CONFIG_PREFIX = "nessie.";
   static final String APPLICATION_TYPE = "application-type";
-  static final String CREATE_IMPLIED_NAMESPACES = "create-implied-namespaces";
+  static final String IGNORE_IMPLIED_NAMESPACES = "ignore-implied-namespaces-on-create";
 
   private NessieUtil() {}
 
@@ -98,7 +98,7 @@ public final class NessieUtil {
    * @param catalogOptions The options where to look for configuration settings.
    */
   static boolean shouldCreateImpliedNamespaces(Map<String, String> catalogOptions) {
-    String create = catalogOptions.get(CREATE_IMPLIED_NAMESPACES);
-    return create == null || Boolean.parseBoolean(create); // Note: `true` if not set
+    return !Boolean.parseBoolean(
+        catalogOptions.get(IGNORE_IMPLIED_NAMESPACES)); // Note: `true` if not set
   }
 }
