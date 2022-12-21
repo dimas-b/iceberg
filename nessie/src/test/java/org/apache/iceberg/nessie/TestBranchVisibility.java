@@ -53,6 +53,7 @@ import org.projectnessie.model.Reference;
 
 public class TestBranchVisibility extends BaseTestIceberg {
 
+  private final org.projectnessie.model.Namespace ns = org.projectnessie.model.Namespace.of("test-ns");
   private final TableIdentifier tableIdentifier1 = TableIdentifier.of("test-ns", "table1");
   private final TableIdentifier tableIdentifier2 = TableIdentifier.of("test-ns", "table2");
   private NessieCatalog testCatalog;
@@ -64,6 +65,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
 
   @BeforeEach
   public void before() throws NessieNotFoundException, NessieConflictException {
+    createNamespace("main", ns);
     createTable(tableIdentifier1, 1); // table 1
     createTable(tableIdentifier2, 1); // table 2
     createBranch("test", catalog.currentHash());
@@ -455,6 +457,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     Namespace namespace = Namespace.of("a", "b");
     Assertions.assertThat(nessieCatalog.listNamespaces(namespace)).isEmpty();
 
+    nessieCatalog.createNamespace(Namespace.of("a")); // parent namespace
     nessieCatalog.createNamespace(namespace);
     Assertions.assertThat(nessieCatalog.listNamespaces(namespace)).isNotEmpty();
     Assertions.assertThat(nessieCatalog.listTables(namespace)).isEmpty();

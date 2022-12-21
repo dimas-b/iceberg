@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
@@ -46,10 +47,15 @@ public class TestNamespace extends BaseTestIceberg {
   }
 
   @Test
-  public void testListNamespaces() {
+  public void testListNamespaces() throws NessieConflictException, NessieNotFoundException {
+    createNamespace(BRANCH, org.projectnessie.model.Namespace.of("a"));
+    createNamespace(BRANCH, org.projectnessie.model.Namespace.of("a", "b"));
+    createNamespace(BRANCH, org.projectnessie.model.Namespace.of("a", "b", "c"));
     createTable(TableIdentifier.parse("a.b.c.t1"));
     createTable(TableIdentifier.parse("a.b.t2"));
     createTable(TableIdentifier.parse("a.t3"));
+    createNamespace(BRANCH, org.projectnessie.model.Namespace.of("b"));
+    createNamespace(BRANCH, org.projectnessie.model.Namespace.of("b", "c"));
     createTable(TableIdentifier.parse("b.c.t4"));
     createTable(TableIdentifier.parse("b.t5"));
     createTable(TableIdentifier.parse("t6"));
@@ -71,6 +77,14 @@ public class TestNamespace extends BaseTestIceberg {
     Assertions.assertThat(namespaces).isNotNull().hasSize(2);
     namespaces = catalog.listNamespaces(Namespace.of("b"));
     Assertions.assertThat(namespaces).isNotNull().hasSize(2);
+  }
+
+  @Test
+  public void testNamespaceExistenceCheckOnCreateTable() throws NessieNotFoundException {
+    ContentKey nsKey = ContentKey.of("a", "b", "c");
+    Assertions.assertThatThrownBy(
+            () -> createTable(TableIdentifier.parse(nsKey.toString() + ".t2")))
+        .hasMessage("Missing Namespaces [a, a.b, a.b.c] in ref test-namespace");
   }
 
   @Test

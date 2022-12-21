@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
+import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.Reference;
 
 public class TestNessieIcebergClient extends BaseTestIceberg {
@@ -88,5 +89,55 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     Assertions.assertThat(client.withReference(branch, null).getRef().getReference())
         .isEqualTo(ref);
     Assertions.assertThat(client.withReference(branch, null)).isNotEqualTo(client);
+  }
+
+  @Test
+  public void testCheckImpliedNamespaces() throws NessieConflictException, NessieNotFoundException {
+    String branch = "testCheckImpliedNamespaces";
+    createBranch(branch, null);
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, ImmutableMap.of());
+
+    Assertions.assertThatCode(() -> client.checkImpliedNamespaces(ContentKey.of("Table")))
+        .doesNotThrowAnyException();
+
+    Assertions.assertThatThrownBy(
+            () -> client.checkImpliedNamespaces(ContentKey.of("a", "b", "c", "Table")))
+        .hasMessage("Missing Namespaces [a, a.b, a.b.c] in ref testCheckImpliedNamespaces");
+
+    createNamespace(branch, org.projectnessie.model.Namespace.of("a", "b"));
+    client.refresh();
+    Assertions.assertThatThrownBy(
+            () -> client.checkImpliedNamespaces(ContentKey.of("a", "b", "c", "Table")))
+        .hasMessage("Missing Namespaces [a, a.b.c] in ref testCheckImpliedNamespaces");
+
+    createNamespace(branch, org.projectnessie.model.Namespace.of("a", "b", "c"));
+    client.refresh();
+    Assertions.assertThatThrownBy(
+            () -> client.checkImpliedNamespaces(ContentKey.of("a", "b", "c", "Table")))
+        .hasMessage("Missing Namespaces [a] in ref testCheckImpliedNamespaces");
+  }
+
+  @Test
+  public void testCheckImpliedNamespacesWrongBranch()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "testFindImpliedNamespacesWrongBranch";
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, ImmutableMap.of());
+
+    // The Nessie Server is not contacted in this case
+    Assertions.assertThatCode(() -> client.checkImpliedNamespaces(ContentKey.of("Table")))
+        .doesNotThrowAnyException();
+
+    Assertions.assertThatThrownBy(() -> client.checkImpliedNamespaces(ContentKey.of("a", "Table")))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage("Nessie ref 'testFindImpliedNamespacesWrongBranch' does not exist");
+
+    createBranch(branch, null);
+    client.refresh();
+    api.deleteBranch().branch((Branch) api.getReference().refName(branch).get()).delete();
+
+    Assertions.assertThatThrownBy(() -> client.checkImpliedNamespaces(ContentKey.of("a", "Table")))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage(
+            "Cannot load Namespaces for 'a.Table': ref 'testFindImpliedNamespacesWrongBranch' is no longer valid.");
   }
 }

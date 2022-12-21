@@ -161,6 +161,8 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       }
     }
 
+    client.checkImpliedNamespaces(key);
+
     String newMetadataLocation =
         (base == null) && (metadata.metadataFileLocation() != null)
             ? metadata.metadataFileLocation()

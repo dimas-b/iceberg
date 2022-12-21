@@ -34,6 +34,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.CommitMultipleOperationsBuilder;
@@ -253,6 +254,48 @@ public class NessieIcebergClient implements AutoCloseable {
           String.format(
               "Cannot load Namespace '%s': " + "ref '%s' is no longer valid.",
               namespace, getRef().getName()),
+          e);
+    }
+  }
+
+  public void checkImpliedNamespaces(ContentKey key) {
+    List<String> elements = key.getNamespace().getElements();
+    if (elements.isEmpty()) {
+      return;
+    }
+
+    List<ContentKey> nsKeys = Lists.newArrayListWithCapacity(elements.size());
+    for (int i = 1; i <= elements.size(); i++) {
+      nsKeys.add(ContentKey.of(elements.subList(0, i)));
+    }
+
+    try {
+      Map<ContentKey, Content> contentMap =
+          getApi().getContent().reference(getRef().getReference()).keys(nsKeys).get();
+
+      List<ContentKey> missingNamespaces = Lists.newArrayList();
+      for (ContentKey nsKey : nsKeys) {
+        Content content = contentMap.get(nsKey);
+        if (content == null) {
+          missingNamespaces.add(nsKey);
+        } else if (!(content instanceof org.projectnessie.model.Namespace)) {
+          throw new IllegalStateException(
+              String.format(
+                  "Key %s should represent a Namespace but is a %s in ref %s",
+                  key, content.getType(), getRef().getName()));
+        }
+      }
+
+      if (!missingNamespaces.isEmpty()) {
+        throw new IllegalStateException(
+            String.format(
+                "Missing Namespaces %s in ref %s", missingNamespaces, getRef().getName()));
+      }
+    } catch (NessieNotFoundException e) {
+      throw new RuntimeException(
+          String.format(
+              "Cannot load Namespaces for '%s': " + "ref '%s' is no longer valid.",
+              key, getRef().getName()),
           e);
     }
   }
